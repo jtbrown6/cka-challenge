@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CKA Study Companion</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlightjs@11.9.0/highlight.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlightjs@11.9.0/styles/github.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; } /* Example font */
+        .day-card {
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            cursor: pointer;
+        }
+        .day-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .day-card.completed { background-color: #d1fae5; border-left: 4px solid #10b981; } /* Tailwind green-100, green-500 */
+        .day-card.in-progress { background-color: #fef3c7; border-left: 4px solid #f59e0b; } /* Tailwind amber-100, amber-500 */
+        .day-card.not-started { background-color: #ffffff; border-left: 4px solid #d1d5db; } /* White, gray-300 */
+
+        .collapsible-trigger { cursor: pointer; user-select: none; }
+        .collapsible-content {
+            display: none;
+            overflow: hidden;
+            transition: max-height 0.5s ease-out;
+            max-height: 0;
+        }
+        .collapsible-content.active {
+            display: block;
+            max-height: 1000px; /* Adjust as needed */
+        }
+        .solution-hidden {
+            filter: blur(5px);
+            user-select: none;
+            position: relative;
+            padding: 10px;
+            border: 1px dashed #ccc;
+            min-height: 50px; /* Ensure it's visible */
+        }
+        .solution-hidden::after {
+            content: "Click 'Reveal Solution' to view.";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.9);
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-weight: 500;
+            color: #374151; /* gray-700 */
+            text-align: center;
+            white-space: nowrap;
+        }
+        .chat-messages {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #e5e7eb; /* gray-200 */
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: #f9fafb; /* gray-50 */
+        }
+        .chat-messages .user-message {
+            background-color: #dbeafe; /* blue-100 */
+            color: #1e40af; /* blue-800 */
+            padding: 8px 12px;
+            margin: 5px 0 5px auto; /* Align right */
+            border-radius: 8px;
+            max-width: 80%;
+            text-align: right;
+            word-wrap: break-word;
+        }
+        .chat-messages .assistant-message {
+            background-color: #f3f4f6; /* gray-100 */
+            color: #1f2937; /* gray-800 */
+            padding: 8px 12px;
+            margin: 5px auto 5px 0; /* Align left */
+            border-radius: 8px;
+            max-width: 80%;
+            text-align: left;
+            word-wrap: break-word;
+        }
+        /* Highlight.js styling */
+        #notePreview pre code, #dailyContent pre code {
+            border-radius: 5px;
+        }
+        /* Markdown styling */
+        #notePreview h1, #notePreview h2, #notePreview h3 { margin-top: 1em; margin-bottom: 0.5em; font-weight: 600; }
+        #notePreview p { margin-bottom: 0.5em; }
+        #notePreview ul, #notePreview ol { margin-left: 1.5em; margin-bottom: 0.5em; }
+        #notePreview code { background-color: #f3f4f6; padding: 0.2em 0.4em; border-radius: 3px; }
+        #notePreview pre code { padding: 1em; display: block; overflow-x: auto; }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+    <div class="container mx-auto p-4">
+        <header class="mb-6">
+            <h1 class="text-4xl font-bold text-center text-blue-700">CKA Study Companion</h1>
+            <div class="mt-2 text-center">
+                <div id="pointsDisplay" class="inline-block bg-blue-100 text-blue-800 px-4 py-2 rounded-lg font-semibold text-lg">
+                    Total Points: <span id="totalPoints">0</span> <span class="text-sm">(Loading...)</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Progress Dashboard -->
+        <section class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-800">Progress Dashboard</h2>
+            <div id="progressDashboard" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                <!-- Days will be dynamically populated here -->
+            </div>
+        </section>
+
+        <!-- Main Content Area (Daily Content + Notes) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+            <!-- Daily Content Column -->
+            <section class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-2xl font-semibold mb-4 text-gray-800">Daily Content</h2>
+                <!-- Removed Day Selector Container -->
+                <div id="dailyContent" class="mt-4">
+                    <p class="text-gray-500">Select a day from the dashboard to view its content.</p>
+                    <!-- Content will be dynamically populated here -->
+                </div>
+            </section>
+
+            <!-- Notes Column -->
+            <section class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-2xl font-semibold mb-4 text-gray-800">Notes for Day <span id="notesDayNumber">--</span></h2>
+                <div id="notesArea">
+                    <textarea id="noteInput" class="border border-gray-300 rounded p-2 w-full h-40 mb-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Write your notes in Markdown... (Notes are saved automatically when you switch days)"></textarea>
+                    <div class="flex space-x-2 mb-4">
+                    <button onclick="saveNote()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition duration-150 ease-in-out">Save Note Manually</button>
+                    <button onclick="exportNote()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition duration-150 ease-in-out">Export This Note</button>
+                    <button onclick="exportAllNotes()" class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 transition duration-150 ease-in-out">Export All Notes</button>
+                </div>
+                <h3 class="text-xl font-semibold mb-2 text-gray-700">Preview</h3>
+                <div id="notePreview" class="border border-gray-200 rounded p-4 bg-gray-50 min-h-[100px]">
+                    <p class="text-gray-400">Markdown preview will appear here...</p>
+                </div>
+                </div>
+            </section>
+        </div> <!-- End Main Content Area Grid -->
+
+        <!-- Chat Section -->
+        <section class="bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-800">AI Chat Assistant</h2>
+            <div class="chat-messages" id="chatMessages">
+                <p class="text-gray-400 text-center mt-4">Chat history will appear here...</p>
+                <!-- Chat messages will be dynamically added here -->
+            </div>
+            <div class="flex space-x-2">
+                <input id="chatInput" class="border border-gray-300 rounded p-2 flex-grow focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Ask a question about CKA...">
+                <button onclick="sendMessage()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition duration-150 ease-in-out">Send</button>
+                <button onclick="resetChat()" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition duration-150 ease-in-out">Reset Chat</button>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // --- Data ---
+        const daysData = [
+  {
+    day: 1,
+    title: "Day 1: Cluster Architecture, Installation & Configuration - Set Up a New Kubernetes Cluster",
+    domain: "Cluster Architecture, Installation & Configuration",
+    overview: "Set up a new Kubernetes cluster using kubeadm on your homelab. Focus on preparing the underlying infrastructure and initializing the control plane.",
+    hints: "Ensure your nodes meet the minimum requirements for kubeadm, such as disabling swap and installing a container runtime like Docker or containerd.\nVerify compatibility between Kubernetes versions and your operating system to avoid initialization errors.\nUse `kubeadm init` with appropriate flags to match your network setup (e.g., `--pod-network-cidr` for CNI compatibility).\nSave the join command output after initialization to add worker nodes later.",
+    topics: "Kubernetes architecture basics (control plane vs. worker nodes).\nRole of kubeadm in cluster bootstrapping.\nPrerequisites for Kubernetes installation (e.g., networking, system settings).",
+    grading: "Cluster initialized successfully (check with `kubectl get nodes` showing at least one node).\nControl plane components are running (verify pod status in `kube-system` namespace with `kubectl get pods -n kube-system`).\nWorker node(s) can join the cluster without errors (if applicable, check join command execution).",
+    solution: "Install prerequisites on all nodes: disable swap (`swapoff -a`), install container runtime, and kubeadm/kubectl/kubelet packages.\nOn the master node, run `kubeadm init --pod-network-cidr=192.168.0.0/16` (adjust CIDR based on your CNI choice).\nSet up kubectl configuration: `mkdir -p $HOME/.kube && cp -i /etc/kubernetes/admin.conf $HOME/.kube/config && chown $(id -u):$(id -g) $HOME/.kube/config`.\nSave the `kubeadm join` command output for worker nodes.\nExpected output: `kubectl get nodes` shows the master node in 'Ready' state."
+  },
+  {
+    day: 2,
+    title: "Day 2: Cluster Architecture, Installation & Configuration - Configure Highly-Available Control Plane",
+    domain: "Cluster Architecture, Installation & Configuration",
+    overview: "Configure a highly-available control plane with multiple master nodes. Document the steps and test failover.",
+    hints: "Use `kubeadm` to join additional master nodes with the `--control-plane` flag to replicate control plane components.\nEnsure a load balancer or DNS round-robin is set up to distribute API server requests across master nodes.\nTest failover by shutting down one master node and verifying cluster operations continue via another master.\nKeep track of certificates and tokens needed for joining control plane nodes.",
+    topics: "High availability concepts in Kubernetes.\nEtcd clustering for data consistency across control plane nodes.\nLoad balancing strategies for API server access.",
+    grading: "At least two master nodes are part of the control plane (verify with `kubectl get nodes` showing multiple 'control-plane' roles).\nControl plane components are replicated across masters (check pod distribution in `kube-system` namespace).\nFailover test passes: shut down one master, and `kubectl` commands still work through another master or load balancer.",
+    solution: "Generate a certificate key for joining control plane nodes: `kubeadm init phase upload-certs --upload-certs` on the first master and save the output key.\nOn additional master nodes, join using: `kubeadm join <first-master-ip>:<port> --token <token> --discovery-token-ca-cert-hash <hash> --control-plane --certificate-key <key>`.\nSet up a load balancer (e.g., HAProxy) or DNS round-robin pointing to all master node IPs for API server access.\nTest failover by stopping kubelet on one master (`systemctl stop kubelet`) and running `kubectl get pods` to confirm functionality.\nExpected output: Multiple nodes with 'control-plane' role in `kubectl get nodes`, and cluster remains operational during failover test."
+  },
+  {
+    day: 3,
+    title: "Day 3: Cluster Architecture, Installation & Configuration - Implement RBAC Policies",
+    domain: "Cluster Architecture, Installation & Configuration",
+    overview: "Implement Role-Based Access Control (RBAC) policies by creating roles and role bindings for different user scenarios.",
+    hints: "Define roles with specific permissions using `Role` or `ClusterRole` resources, focusing on least privilege principles.\nUse `RoleBinding` or `ClusterRoleBinding` to assign roles to users, groups, or service accounts.\nTest permissions by impersonating users or using separate kubeconfig files with limited access.\nCheck RBAC policies with `kubectl auth can-i` to verify what a user can do.",
+    topics: "RBAC components: Roles, ClusterRoles, RoleBindings, and ClusterRoleBindings.\nKubernetes authentication and authorization mechanisms.\nManaging user access in a multi-tenant cluster.",
+    grading: "At least two distinct roles created with different permission sets (e.g., read-only vs. full namespace access).\nRole bindings applied correctly to users or service accounts (verify with `kubectl get rolebindings -n <namespace>`).\nPermissions tested and confirmed (e.g., a read-only user cannot create pods, checked with `kubectl auth can-i create pods --as=<user>`).",
+    solution: "Create a read-only role in a specific namespace: `kubectl create role read-only --verb=get,list,watch --resource=pods,services -n default`.\nCreate a role binding for a user: `kubectl create rolebinding read-only-user --role=read-only --user=test-user -n default`.\nCreate a broader ClusterRole for admin tasks: `kubectl create clusterrole admin-access --verb=* --resource=*`.\nBind the ClusterRole to a service account: `kubectl create clusterrolebinding admin-sa --clusterrole=admin-access --serviceaccount=default:admin-sa`.\nTest permissions: `kubectl auth can-i get pods -n default --as=test-user` should return 'yes', while `kubectl auth can-i create pods -n default --as=test-user` returns 'no'.\nExpected output: RBAC policies enforced as defined, with users restricted or allowed based on bindings."
+  },
+  {
+    day: 4,
+    title: "Day 4: Workloads & Scheduling - Deploy Application with Node Affinity",
+    domain: "Workloads & Scheduling",
+    overview: "Deploy a simple application and configure pod scheduling using node affinity rules.",
+    hints: "Use node labels to categorize nodes for scheduling (e.g., `kubectl label nodes <node-name> environment=prod`).\nDefine affinity rules in pod spec under `affinity.nodeAffinity` to match specific node labels.\nTest scheduling by checking where pods are placed with `kubectl get pods -o wide`.\nConsider using `requiredDuringSchedulingIgnoredDuringExecution` for strict affinity or `preferredDuringSchedulingIgnoredDuringExecution` for softer preferences.",
+    topics: "Pod scheduling mechanisms in Kubernetes.\nNode affinity vs. node selectors.\nTaints and tolerations interaction with affinity.",
+    grading: "Node labels applied correctly (verify with `kubectl get nodes --show-labels`).\nApplication deployed with affinity rules in pod spec (check deployment YAML).\nPods scheduled on intended nodes based on affinity rules (confirm with `kubectl get pods -o wide`).",
+    solution: "Label a node: `kubectl label nodes <node-name> environment=prod`.\nCreate a deployment with node affinity:\n```yaml\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: affinity-app\nspec:\n  replicas: 2\n  selector:\n    matchLabels:\n      app: affinity-app\n  template:\n    metadata:\n      labels:\n        app: affinity-app\n    spec:\n      affinity:\n        nodeAffinity:\n          requiredDuringSchedulingIgnoredDuringExecution:\n            nodeSelectorTerms:\n            - matchExpressions:\n              - key: environment\n                operator: In\n                values:\n                - prod\n      containers:\n      - name: nginx\n        image: nginx\n```\nApply the deployment: `kubectl apply -f affinity-app.yaml`.\nExpected output: Pods running on nodes labeled `environment=prod` as shown in `kubectl get pods -o wide`."
+  },
+  {
+    day: 5,
+    title: "Day 5: Workloads & Scheduling - Set Up Resource Limits and Requests",
+    domain: "Workloads & Scheduling",
+    overview: "Set up resource limits and requests for pods, and test how the scheduler handles resource constraints.",
+    hints: "Define `requests` for minimum resources a pod needs and `limits` for maximum resources it can use in the container spec.\nMonitor resource usage with `kubectl top pod` if metrics-server is installed, or check node capacity with `kubectl describe nodes`.\nTest scheduler behavior by overcommitting resources on a node and observing pod status (e.g., Pending due to insufficient resources).\nUse namespaces with resource quotas to enforce limits at a higher level if needed.",
+    topics: "Resource management in Kubernetes (CPU, memory units).\nImpact of resource requests and limits on scheduling.\nQuality of Service (QoS) classes for pods (Guaranteed, Burstable, BestEffort).",
+    grading: "Deployment created with specific resource requests and limits (verify pod spec with `kubectl describe pod`).\nPods scheduled based on available node resources (check pod status and node allocation).\nTest scenario shows scheduler behavior (e.g., pod in Pending state if resources unavailable, confirmed with `kubectl get pods`).",
+    solution: "Create a deployment with resource constraints:\n```yaml\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: resource-app\nspec:\n  replicas: 3\n  selector:\n    matchLabels:\n      app: resource-app\n  template:\n    metadata:\n      labels:\n        app: resource-app\n    spec:\n      containers:\n      - name: nginx\n        image: nginx\n        resources:\n          requests:\n            cpu: \"200m\"\n            memory: \"256Mi\"\n          limits:\n            cpu: \"500m\"\n            memory: \"512Mi\"\n```\nApply the deployment: `kubectl apply -f resource-app.yaml`.\nCheck pod status: `kubectl get pods` (ensure all are Running if resources are available).\nTest overcommit by scaling replicas to exceed node capacity: `kubectl scale deployment resource-app --replicas=10` and observe Pending pods.\nExpected output: Pods with defined resources scheduled appropriately, some in Pending state if node resources are insufficient."
+  },
+  {
+    day: 6,
+    title: "Day 6: Services & Networking - Create Different Service Types",
+    domain: "Services & Networking",
+    overview: "Create different service types (ClusterIP, NodePort, LoadBalancer) and verify connectivity between pods.",
+    hints: "Use `ClusterIP` for internal access, `NodePort` for external access on specific ports, and `LoadBalancer` for cloud provider integration (if applicable in homelab).\nVerify connectivity for ClusterIP with `kubectl exec` to curl from another pod, NodePort by accessing node IP:port externally, and LoadBalancer via its external IP if supported.\nCheck service endpoints with `kubectl get endpoints` to ensure they map to correct pods.\nLabel pods appropriately to match service selectors.",
+    topics: "Kubernetes service types and their use cases.\nService discovery and DNS resolution within the cluster.\nHow services abstract pod IP changes.",
+    grading: "Three services created: ClusterIP, NodePort, and LoadBalancer (or simulated if not supported in homelab) (verify with `kubectl get svc`).\nConnectivity confirmed for each service type (e.g., curl from pod for ClusterIP, browser access for NodePort).\nEndpoints correctly associated with pods (check with `kubectl get endpoints`).",
+    solution: "Deploy a simple app: `kubectl run nginx --image=nginx --replicas=2 --labels=app=nginx-app`.\nCreate ClusterIP service: `kubectl expose deployment nginx --type=ClusterIP --port=80 --target-port=80 --name=nginx-clusterip`.\nCreate NodePort service: `kubectl expose deployment nginx --type=NodePort --port=80 --target-port=80 --name=nginx-nodeport`.\nCreate LoadBalancer service (if supported): `kubectl expose deployment nginx --type=LoadBalancer --port=80 --target-port=80 --name=nginx-lb`.\nTest ClusterIP: `kubectl exec -it <other-pod> -- curl nginx-clusterip:80` (should return nginx page).\nTest NodePort: Access `<node-ip>:<nodeport>` in browser (find port with `kubectl get svc nginx-nodeport`).\nExpected output: All services listed in `kubectl get svc`, with successful connectivity tests for each type."
+  },
+  {
+    day: 7,
+    title: "Day 7: Services & Networking - Define and Enforce Network Policies",
+    domain: "Services & Networking",
+    overview: "Define and apply a Network Policy to restrict traffic between pods in different namespaces.",
+    hints: "Ensure your CNI plugin supports Network Policies (e.g., Calico, Cilium); install one if needed.\nCreate namespaces to isolate workloads and apply policies to control ingress/egress traffic.\nUse `podSelector` and `namespaceSelector` in NetworkPolicy spec to define allowed traffic.\nTest policy by attempting connections (e.g., curl) from restricted pods and confirming denial.",
+    topics: "Network Policies and their role in cluster security.\nCNI plugins supporting Network Policies.\nNamespace isolation strategies.",
+    grading: "At least two namespaces created with pods in each (verify with `kubectl get pods -n <namespace>`).\nNetwork Policy applied to restrict traffic (check with `kubectl get networkpolicy -n <namespace>`).\nTraffic restriction confirmed (e.g., curl from pod in one namespace to another fails unless allowed by policy).",
+    solution: "Create namespaces: `kubectl create namespace app1` and `kubectl create namespace app2`.\nDeploy pods: `kubectl run nginx-app1 --image=nginx -n app1 --labels=app=nginx-app1` and `kubectl run nginx-app2 --image=nginx -n app2 --labels=app=nginx-app2`.\nExpose services: `kubectl expose pod nginx-app1 --port=80 -n app1` and `kubectl expose pod nginx-app2 --port=80 -n app2`.\nCreate a Network Policy in app1 to allow traffic only from app2:\n```yaml\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: allow-app2\n  namespace: app1\nspec:\n  podSelector:\n    matchLabels:\n      app: nginx-app1\n  policyTypes:\n  - Ingress\n  ingress:\n  - from:\n    - namespaceSelector:\n        matchLabels:\n          name: app2\n    ports:\n    - protocol: TCP\n      port: 80\n```\nApply policy: `kubectl apply -f policy.yaml`.\nTest by curling from app2 to app1 (should work) and from another namespace or pod (should fail).\nExpected output: Traffic to app1 pods restricted except from app2 namespace as defined."
+  },
+  {
+    day: 8,
+    title: "Day 8: Storage - Implement Storage Class with Dynamic Provisioning",
+    domain: "Storage",
+    overview: "Implement a Storage Class with dynamic provisioning and create Persistent Volume Claims (PVCs) to test volume allocation.",
+    hints: "Choose a storage provisioner compatible with your homelab (e.g., local-path-provisioner or NFS if no cloud provider).\nDefine a Storage Class with `provisioner` field pointing to your chosen provisioner.\nCreate a PVC referencing the Storage Class and check if a Persistent Volume (PV) is automatically created.\nAttach the PVC to a pod and write data to confirm provisioning works.",
+    topics: "Dynamic provisioning in Kubernetes.\nStorage Classes and their parameters (e.g., reclaimPolicy).\nStorage provisioners available for homelab environments.",
+    grading: "Storage Class created with dynamic provisioning enabled (verify with `kubectl get storageclass`).\nPVC bound to a dynamically created PV (check with `kubectl get pvc` and `kubectl get pv`).\nPod using the PVC can read/write data to the volume (test by writing a file inside the pod).",
+    solution: "Install a provisioner like local-path-provisioner if not using a cloud provider: Follow Rancher’s local-path-provisioner setup guide or use Helm.\nCreate a Storage Class:\n```yaml\napiVersion: storage.k8s.io/v1\nkind: StorageClass\nmetadata:\n  name: local-path\nprovisioner: rancher.io/local-path\nvolumeBindingMode: WaitForFirstConsumer\nreclaimPolicy: Delete\n```\nCreate a PVC:\n```yaml\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: test-pvc\nspec:\n  storageClassName: local-path\n  accessModes:\n    - ReadWriteOnce\n  resources:\n    requests:\n      storage: 1Gi\n```\nDeploy a pod using the PVC:\n```yaml\napiVersion: v1\nkind: Pod\nmetadata:\n  name: test-pod\nspec:\n  containers:\n  - name: busybox\n    image: busybox\n    command: [\"/bin/sh\", \"-c\", \"echo 'test' > /data/test.txt && sleep 3600\"]\n    volumeMounts:\n    - name: test-volume\n      mountPath: /data\n  volumes:\n  - name: test-volume\n    persistentVolumeClaim:\n      claimName: test-pvc\n```\nApply resources: `kubectl apply -f storageclass.yaml`, `kubectl apply -f pvc.yaml`, `kubectl apply -f pod.yaml`.\nCheck binding: `kubectl get pvc` (should show 'Bound').\nVerify data: `kubectl exec test-pod -- cat /data/test.txt` (should output 'test').\nExpected output: PVC bound to a dynamically provisioned PV, pod writes data successfully."
+  },
+  {
+    day: 9,
+    title: "Day 9: Storage - Configure Volume Types and Access Modes",
+    domain: "Storage",
+    overview: "Configure different volume types and access modes, and test reclaim policies by deleting and recreating PVCs.",
+    hints: "Experiment with volume types like `emptyDir` (ephemeral), `hostPath` (node-specific), and persistent volumes via PVCs.\nSet access modes in PVCs: `ReadWriteOnce` (single node), `ReadOnlyMany` (multiple readers), `ReadWriteMany` (if supported by storage).\nTest reclaim policies (`Delete` vs. `Recycle`) by deleting PVCs and observing PV behavior.\nUse `kubectl describe pvc` and `kubectl describe pv` to debug binding issues.",
+    topics: "Kubernetes volume types and their use cases.\nAccess modes and storage compatibility.\nReclaim policies and data lifecycle management.",
+    grading: "At least two different volume types configured (e.g., hostPath and PVC) (verify pod specs).\nPVCs created with different access modes (check with `kubectl describe pvc`).\nReclaim policy behavior confirmed (e.g., PV deleted or retained after PVC deletion, check with `kubectl get pv`).",
+    solution: "Create a pod with `hostPath` volume (ReadWriteOnce implied):\n```yaml\napiVersion: v1\nkind: Pod\nmetadata:\n  name: hostpath-pod\nspec:\n  containers:\n  - name: busybox\n    image: busybox\n    command: [\"/bin/sh\", \"-c\", \"sleep 3600\"]\n    volumeMounts:\n    - name: host-data\n      mountPath: /data\n  volumes:\n  - name: host-data\n    hostPath:\n      path: /tmp/data\n      type: DirectoryOrCreate\n```\nCreate a PVC with `ReadWriteMany` (if supported) using a Storage Class:\n```yaml\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: rwm-pvc\nspec:\n  storageClassName: local-path\n  accessModes:\n    - ReadWriteMany\n  resources:\n    requests:\n      storage: 1Gi\n```\nDeploy multiple pods using the same PVC to test ReadWriteMany.\nSet Storage Class reclaimPolicy to `Delete`, delete PVC, and confirm PV is removed: `kubectl delete pvc rwm-pvc` then `kubectl get pv`.\nExpected output: Pods using different volume types run successfully, access modes respected (e.g., multiple pods can mount ReadWriteMany PVC), reclaim policy behavior as configured."
+  },
+  {
+    day: 10,
+    title: "Day 10: Troubleshooting - Simulate Node Failure",
+    domain: "Troubleshooting",
+    overview: "Simulate a node failure in your cluster and troubleshoot the issue to restore functionality.",
+    hints: "Simulate failure by stopping kubelet on a node (`systemctl stop kubelet`) or shutting down the node VM if in a homelab.\nCheck cluster status with `kubectl get nodes` to identify NotReady nodes.\nInspect logs on the failed node (`journalctl -u kubelet`) for errors after restarting.\nVerify pod rescheduling on other nodes if the failed node was hosting workloads.",
+    topics: "Node status and health monitoring in Kubernetes.\nPod eviction and rescheduling behavior.\nKubelet troubleshooting techniques.",
+    grading: "Node failure simulated and detected (NotReady status in `kubectl get nodes`).\nPods rescheduled to healthy nodes if applicable (check with `kubectl get pods -o wide`).\nNode restored to Ready state after troubleshooting (confirm with `kubectl get nodes`).",
+    solution: "On a worker node, stop kubelet: `systemctl stop kubelet`.\nCheck cluster: `kubectl get nodes` (node shows NotReady after a few minutes).\nObserve pod behavior: `kubectl get pods -o wide` (pods on failed node should be rescheduled if no affinity rules prevent it).\nCheck logs on failed node: `journalctl -u kubelet` (look for errors like network issues or certificate problems).\nRestart kubelet: `systemctl start kubelet` and monitor status: `kubectl get nodes` (should return to Ready).\nExpected output: Node transitions from Ready to NotReady and back to Ready after resolution, pods rescheduled as needed."
+  },
+  {
+    day: 11,
+    title: "Day 11: Troubleshooting - Investigate Failing Cluster Component",
+    domain: "Troubleshooting",
+    overview: "Investigate a failing cluster component (e.g., kubelet or API server) by analyzing logs and system resources.",
+    hints: "Identify failing component by checking pod status in `kube-system` namespace (`kubectl get pods -n kube-system`).\nAccess logs for control plane components via `kubectl logs` or directly on nodes (`journalctl -u kube-apiserver` if static pods).\nCheck system resources (CPU, memory, disk) on the node hosting the component using `top` or `df` to rule out resource exhaustion.\nLook for error messages related to networking, certificates, or configuration in logs.",
+    topics: "Kubernetes control plane architecture and components.\nLog aggregation and analysis in Kubernetes.\nCommon failure modes for API server, controller manager, and scheduler.",
+    grading: "Failing component identified (e.g., crashing pod in `kube-system`, verified with `kubectl get pods -n kube-system`).\nLogs analyzed and potential cause identified (document findings from `kubectl logs` or system logs).\nIssue resolved or mitigated (e.g., restart component, fix config, confirm component stability with status check).",
+    solution: "Check control plane health: `kubectl get pods -n kube-system` (look for CrashLoopBackOff or Error states).\nSimulate issue if needed by misconfiguring API server (e.g., edit static pod manifest with invalid flag on master node at `/etc/kubernetes/manifests/kube-apiserver.yaml`, then restart kubelet).\nGet logs: `kubectl logs kube-apiserver-<node> -n kube-system` or `journalctl -u kube-apiserver` on master node.\nIdentify error (e.g., invalid flag or port conflict), correct manifest, and restart: `systemctl restart kubelet`.\nConfirm resolution: `kubectl get pods -n kube-system` (API server pod Running).\nExpected output: Failing component identified, logs show error (e.g., configuration issue), resolution restores component to healthy state."
+  },
+  {
+    day: 12,
+    title: "Day 12: Troubleshooting - Monitor Resource Usage",
+    domain: "Troubleshooting",
+    overview: "Monitor resource usage for an application using built-in Kubernetes tools and identify bottlenecks.",
+    hints: "Install metrics-server if not already present to enable `kubectl top` for resource usage data.\nUse `kubectl describe nodes` to see overall node resource allocation and limits.\nCheck pod resource usage with `kubectl top pod` or container logs for high CPU/memory indicators.\nIdentify bottlenecks by correlating high usage with application performance issues (e.g., slow response times).",
+    topics: "Kubernetes metrics and monitoring ecosystem.\nMetrics-server installation and usage.\nResource contention and its impact on workloads.",
+    grading: "Resource monitoring tool set up (e.g., metrics-server installed, verified with `kubectl get pods -n kube-system`).\nApplication resource usage data collected (check output of `kubectl top pod` or similar).\nBottleneck identified (e.g., pod exceeding CPU limit, documented with usage stats and observed impact).",
+    solution: "Install metrics-server: Use Helm (`helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/` and `helm install metrics-server metrics-server/metrics-server -n kube-system`) or manifest from GitHub.\nDeploy a resource-intensive app if needed:\n```yaml\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: stress-test\nspec:\n  replicas: 1\n  selector:\n    matchLabels:\n      app: stress-test\n  template:\n    metadata:\n      labels:\n        app: stress-test\n    spec:\n      containers:\n      - name: stress\n        image: polinux/stress\n        command: [\"stress\", \"--cpu\", \"2\", \"--vm\", \"1\"]\n        resources:\n          limits:\n            cpu: \"500m\"\n            memory: \"512Mi\"\n```\nMonitor usage: `kubectl top pod` (shows high CPU/memory for stress-test pod).\nCheck node: `kubectl describe nodes` (see if node is near capacity).\nIdentify bottleneck: Pod may be throttled due to CPU limit, causing performance issues."
+  },
+  {
+    day: 13,
+    title: "Day 13: Troubleshooting - Troubleshoot Misconfigured Service",
+    domain: "Troubleshooting",
+    overview: "Troubleshoot a misconfigured service by examining container output streams and logs.",
+    hints: "Start by checking the service status and associated pods with `kubectl get svc` and `kubectl get pods` to identify any immediate anomalies.\nUse `kubectl describe svc <service-name>` to inspect service details like selectors and endpoints, ensuring they match the intended pods.\nAnalyze logs with `kubectl logs <pod-name>` to look for errors related to connectivity or configuration.\nVerify endpoint mappings with `kubectl get endpoints <service-name>` to ensure the service is correctly linked to pods.",
+    topics: "Service configuration and endpoint management in Kubernetes.\nLog analysis for diagnosing service issues.\nCommon service misconfiguration patterns (e.g., selector mismatches, port errors).",
+    grading: "Service issue identified (e.g., no endpoints or incorrect pod selection, verified with `kubectl describe svc`).\nLogs inspected to pinpoint error messages (document findings from `kubectl logs`).\nIssue resolved by correcting configuration (e.g., update selector, confirm with `kubectl get endpoints` showing active endpoints).",
+    solution: "Check service status: `kubectl get svc` (look for services with no endpoints or unusual status).\nDescribe service: `kubectl describe svc <service-name>` (note if selectors don't match pod labels or ports are incorrect).\nInspect pod labels: `kubectl get pods --show-labels` (compare with service selector).\nExample scenario 1 - Selector mismatch: If service selector is `app=frontend` but pods are labeled `app=front-end`, update service YAML or pod labels to match: `kubectl label pod <pod-name> app=frontend --overwrite`.\nExample scenario 2 - Port mismatch: If service targets port 8080 but pod exposes 80, edit service: `kubectl edit svc <service-name>` to correct `targetPort`.\nCheck logs for errors: `kubectl logs <pod-name>` (look for connection refused or binding issues).\nVerify endpoints post-fix: `kubectl get endpoints <service-name>` (should list pod IPs).\nExpected output: Service connects to pods after correction, endpoints populated, and access (e.g., `curl <service-name>:<port>`) succeeds from another pod."
+  },
+  {
+    day: 14,
+    title: "Day 14: Cluster Architecture, Installation & Configuration - Use Helm for Application Installation",
+    domain: "Cluster Architecture, Installation & Configuration",
+    overview: "Use Helm to install a common application (e.g., Nginx) and customize it with values overrides.",
+    hints: "Install Helm on your system if not already present, following official documentation for your OS.\nAdd a Helm repository like Bitnami for common charts: `helm repo add bitnami https://charts.bitnami.com/bitnami`.\nUse `helm install` with custom values via `--set` or a values YAML file to tailor the application to your needs.\nVerify installation with `kubectl get pods` and `helm list` to ensure the release is active.",
+    topics: "Helm chart structure and customization options.\nManaging application dependencies with Helm.\nTroubleshooting Helm installation failures.",
+    grading: "Helm installed and repository added (verify with `helm repo list`).\nApplication deployed via Helm with custom configurations (check with `helm list` and `kubectl get pods`).\nCustomization confirmed (e.g., Nginx welcome page altered, verified by accessing the service).",
+    solution: "Install Helm if needed (follow official guide for your OS, e.g., `curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash` on Linux).\nAdd Bitnami repo: `helm repo add bitnami https://charts.bitnami.com/bitnami`.\nInstall Nginx with custom server block: `helm install my-nginx bitnami/nginx --set serverBlock=\"server { listen 80; server_name example.com; location / { return 200 'Custom Welcome!'; add_header Content-Type text/plain; } }\"` in a namespace: `--namespace default`.\nCheck deployment: `kubectl get pods -n default` (pods should be Running).\nAccess service: Find service name with `kubectl get svc -n default` and test with `curl <service-name>:80` from another pod or external if exposed.\nExpected output: Helm release listed in `helm list`, Nginx pods running, custom message returned on access."
+  },
+  {
+    day: 15,
+    title: "Day 15: Cluster Architecture, Installation & Configuration - Explore Kustomize for Configurations",
+    domain: "Cluster Architecture, Installation & Configuration",
+    overview: "Use Kustomize to manage cluster configurations and apply a set of resources with patches.",
+    hints: "Kustomize is built into `kubectl` (since v1.14), so no separate installation is needed; use `kubectl apply -k`.\nCreate a `kustomization.yaml` file to define base resources and patches for customization.\nOrganize resources in directories (base and overlays) to manage different environments or configurations.\nPreview changes with `kubectl kustomize <directory>` before applying to ensure correctness.",
+    topics: "Kustomize concepts: bases, overlays, and patches.\nComparison of Kustomize with Helm for configuration management.\nManaging multi-environment setups with Kustomize.",
+    grading: "Kustomization file created with base and patch definitions (verify content of `kustomization.yaml`).\nResources applied successfully using Kustomize (check with `kubectl get pods` or relevant resource type).\nCustomizations from patches applied (e.g., modified labels or configs, confirmed with `kubectl describe`).",
+    solution: "Create a directory structure: `mkdir -p kustomize/base kustomize/overlays/dev`.\nIn `kustomize/base`, create a deployment YAML (e.g., for Nginx) and a `kustomization.yaml`:\n```yaml\napiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nresources:\n- deployment.yaml\n```\nIn `kustomize/overlays/dev`, create a patch file `patch.yaml` to modify replicas or labels:\n```yaml\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: nginx-deployment\nspec:\n  replicas: 2\n  template:\n    metadata:\n      labels:\n        env: dev\n```\nAdd `kustomization.yaml` in overlay:\n```yaml\napiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nresources:\n- ../../base\npatchesStrategicMerge:\n- patch.yaml\n```\nApply: `kubectl apply -k kustomize/overlays/dev`.\nVerify: `kubectl get pods` (should show 2 replicas with label `env=dev`).\nExpected output: Resources deployed with customizations from Kustomize patches as defined."
+  },
+  {
+    day: 16,
+    title: "Day 16: Cluster Architecture, Installation & Configuration - Install CNI Plugin",
+    domain: "Cluster Architecture, Installation & Configuration",
+    overview: "Install a CNI plugin (e.g., Calico or Flannel) and understand its impact on cluster networking.",
+    hints: "Choose a CNI plugin based on your cluster needs (e.g., Flannel for simplicity, Calico for Network Policies).\nIf reinstalling, reset the cluster networking with `kubeadm reset` on nodes (backup data first) or delete existing CNI pods.\nApply CNI manifests from official sources using `kubectl apply -f <url>` after cluster initialization.\nVerify networking by creating pods in different namespaces and testing connectivity with `kubectl exec` and `ping`.",
+    topics: "Role of CNI in Kubernetes networking.\nDifferences between CNI plugins (e.g., overlay vs. routed networks).\nImpact of CNI on Network Policy enforcement.",
+    grading: "CNI plugin installed (verify pods in `kube-system` namespace with `kubectl get pods -n kube-system`).\nPod-to-pod connectivity tested across nodes (confirm with `kubectl exec` and basic network checks).\nBasic understanding of CNI impact (e.g., Network Policy support if using Calico, documented in logs).",
+    solution: "Choose Calico for this example (supports Network Policies). If cluster already has a CNI, consider resetting networking or using a fresh cluster.\nApply Calico manifest post `kubeadm init`: `kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml`.\nCheck installation: `kubectl get pods -n kube-system` (look for Calico pods like `calico-node` and `calico-kube-controllers` in Running state).\nDeploy test pods on different nodes: `kubectl run test1 --image=busybox -n default -- /bin/sh -c \"sleep 3600\"` and repeat for `test2`.\nTest connectivity: `kubectl exec test1 -n default -- ping <test2-pod-ip>` (find IP with `kubectl get pods -o wide`).\nExpected output: Calico pods running, pod-to-pod communication successful across nodes, confirming CNI functionality."
+  },
+  {
+    day: 17,
+    title: "Day 17: Services & Networking - Set Up Ingress Controller and Resources",
+    domain: "Services & Networking",
+    overview: "Set up an Ingress controller and define Ingress resources to manage external traffic to services.",
+    hints: "Choose an Ingress controller suitable for homelab (e.g., Nginx Ingress Controller) and install it via Helm or manifests.\nEnsure your cluster has a working CNI for pod networking before setting up Ingress.\nDefine Ingress resources with rules for path or host-based routing to backend services.\nTest Ingress by accessing defined hosts/paths externally or via `curl` with custom headers if no DNS setup.",
+    topics: "Ingress vs. LoadBalancer/NodePort for external access.\nIngress controller options and configurations.\nTLS setup for Ingress resources.",
+    grading: "Ingress controller installed (verify with `kubectl get pods -n <controller-namespace>`).\nIngress resource defined and applied (check with `kubectl get ingress`).\nTraffic routing confirmed (e.g., access path or host routes to correct service, tested with `curl` or browser).",
+    solution: "Install Nginx Ingress Controller via Helm: `helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx` and `helm install ingress-nginx ingress-nginx/ingress-nginx -n ingress-nginx --create-namespace`.\nVerify controller: `kubectl get pods -n ingress-nginx` (should show controller pod Running).\nDeploy two test services (e.g., Nginx and a simple HTTP server):\n  - `kubectl run nginx --image=nginx --port=80 --labels=app=nginx-app`.\n  - `kubectl expose pod nginx --port=80 --name=nginx-svc`.\n  - Repeat for another app if needed.\nCreate Ingress resource:\n```yaml\napiVersion: networking.k8s.io/v1\nkind: Ingress\nmetadata:\n  name: test-ingress\n  annotations:\n    nginx.ingress.kubernetes.io/rewrite-target: /\nspec:\n  rules:\n  - host: example.local\n    http:\n      paths:\n      - path: /nginx\n        pathType: Prefix\n        backend:\n          service:\n            name: nginx-svc\n            port:\n              number: 80\n```\nApply: `kubectl apply -f ingress.yaml`.\nTest (if no DNS, edit /etc/hosts to map `example.local` to controller external IP or use curl): `curl -H \"Host: example.local\" http://<controller-ip>/nginx`.\nExpected output: Ingress routes traffic to Nginx service when accessing `/nginx` path under specified host."
+  },
+  {
+    day: 18,
+    title: "Day 18: Services & Networking - Use Gateway API for Traffic Routing",
+    domain: "Services & Networking",
+    overview: "Use the Gateway API to configure advanced traffic routing and test with different workloads.",
+    hints: "Gateway API is an evolution of Ingress, requiring specific controller implementations (e.g., Istio, Contour); check if supported in your homelab setup.\nInstall a Gateway controller if needed, following project-specific guides (e.g., Contour via Helm).\nDefine `Gateway` and `HTTPRoute` resources to manage traffic routing with more granularity than Ingress.\nTest routing rules by deploying multiple services and accessing defined paths or hosts.",
+    topics: "Gateway API vs. Ingress API for traffic management.\nComponents of Gateway API: Gateway, HTTPRoute, TCPRoute, etc.\nAdvanced routing features (e.g., traffic splitting, header matching).",
+    grading: "Gateway controller installed if required (verify with `kubectl get pods -n <controller-namespace>`).\nGateway and HTTPRoute resources defined (check with `kubectl get gateway` and `kubectl get httproute` if supported).\nTraffic routing tested and confirmed (e.g., specific paths route to correct services, verified with access tests).",
+    solution: "Install Contour as Gateway API controller: `helm repo add bitnami https://charts.bitnami.com/bitnami` and `helm install contour bitnami/contour -n projectcontour --create-namespace --set envoy.service.type=NodePort`.\nVerify: `kubectl get pods -n projectcontour` (Contour and Envoy pods Running).\nDeploy test services (e.g., two Nginx instances with different labels).\nDefine Gateway:\n```yaml\napiVersion: gateway.networking.k8s.io/v1beta1\nkind: Gateway\nmetadata:\n  name: test-gateway\n  namespace: default\nspec:\n  gatewayClassName: contour\n  listeners:\n  - name: http\n    port: 80\n    protocol: HTTP\n```\nDefine HTTPRoute for routing:\n```yaml\napiVersion: gateway.networking.k8s.io/v1beta1\nkind: HTTPRoute\nmetadata:\n  name: test-route\n  namespace: default\nspec:\n  parentRefs:\n  - name: test-gateway\n  hostnames:\n  - \"test.local\"\n  rules:\n  - matches:\n    - path:\n        type: PathPrefix\n        value: /app1\n    backendRefs:\n    - name: app1-svc\n      port: 80\n```\nApply: `kubectl apply -f gateway.yaml` and `kubectl apply -f route.yaml`.\nTest routing: Access `<envoy-nodeport-ip>/app1` with host header or mapped DNS.\nExpected output: Traffic routed to `app1-svc` when accessing `/app1` under specified hostname."
+  },
+  {
+    day: 19,
+    title: "Day 19: Services & Networking - Configure CoreDNS for Custom Resolution",
+    domain: "Services & Networking",
+    overview: "Configure CoreDNS for custom DNS resolution within the cluster and troubleshoot DNS issues.",
+    hints: "CoreDNS is the default DNS server in Kubernetes (since v1.12); locate its ConfigMap in `kube-system` namespace with `kubectl get configmap -n kube-system`.\nEdit CoreDNS ConfigMap to add custom zones or forwarders for specific domains using `kubectl edit configmap coredns -n kube-system`.\nTest DNS resolution from pods using `kubectl exec <pod> -- nslookup <domain>` or `dig`.\nRestart CoreDNS pods after changes with `kubectl delete pod -l k8s-app=coredns -n kube-system` to apply configurations.",
+    topics: "CoreDNS architecture and plugin system.\nDNS resolution flow in Kubernetes.\nCommon DNS issues and debugging techniques.",
+    grading: "CoreDNS configuration modified for custom resolution (verify ConfigMap changes with `kubectl describe configmap coredns -n kube-system`).\nCustom DNS resolution tested from a pod (confirm with `nslookup` or similar command output).\nDNS troubleshooting performed if issues arise (e.g., check CoreDNS logs with `kubectl logs`).",
+    solution: "Check CoreDNS ConfigMap: `kubectl get configmap coredns -n kube-system -o yaml`.\nEdit to add a custom forward for a domain (e.g., forward `example.local` to a specific DNS server):\n  - `kubectl edit configmap coredns -n kube-system`\n  - Add under `data.Corefile`:\n    ```\n    example.local:53 {\n        forward . 8.8.8.8\n    }\n    ```\nRestart CoreDNS: `kubectl delete pod -l k8s-app=coredns -n kube-system`.\nDeploy a test pod: `kubectl run busybox --image=busybox -- /bin/sh -c \"sleep 3600\"`.\nTest resolution: `kubectl exec busybox -- nslookup example.local` (should resolve via forwarded DNS).\nIf resolution fails, check CoreDNS logs: `kubectl logs -l k8s-app=coredns -n kube-system` (look for syntax errors or forwarder issues).\nExpected output: Custom DNS resolution works as configured, or logs indicate specific errors to fix."
+  },
+  {
+    day: 20,
+    title: "Day 20: Workloads & Scheduling - Perform Rolling Updates and Rollbacks",
+    domain: "Workloads & Scheduling",
+    overview: "Perform a rolling update on a deployed application and test rollback capabilities.",
+    hints: "Use `kubectl set image` or edit Deployment YAML to trigger a rolling update with a new image version.\nMonitor update progress with `kubectl rollout status deployment/<name>` to ensure zero downtime.\nTest rollback with `kubectl rollout undo deployment/<name>` if the update introduces issues.\nConfigure `replicas`, `minReadySeconds`, and `revisionHistoryLimit` in Deployment spec to control update behavior.",
+    topics: "Rolling update strategy in Kubernetes Deployments.\nRollback mechanisms and revision history.\nEnsuring zero downtime during updates.",
+    grading: "Rolling update performed on a Deployment (verify with `kubectl rollout status` showing completion).\nApplication accessibility maintained during update (test with service access or `curl`).\nRollback tested successfully if needed (confirm with `kubectl rollout history` and application behavior).",
+    solution: "Deploy a sample app: `kubectl create deployment nginx-app --image=nginx:1.14 --replicas=3`.\nExpose it: `kubectl expose deployment nginx-app --port=80 --name=nginx-app-svc`.\nTrigger rolling update: `kubectl set image deployment/nginx-app nginx=nginx:1.16 --record`.\nMonitor: `kubectl rollout status deployment/nginx-app` (should show update progress).\nTest access during update: `kubectl exec -it <other-pod> -- curl nginx-app-svc:80` (should respond without interruption).\nIf update fails or for testing, rollback: `kubectl rollout undo deployment/nginx-app`.\nCheck history: `kubectl rollout history deployment/nginx-app` (shows revisions).\nExpected output: Update completes with new image, no downtime observed, rollback restores previous version if executed."
+  },
+  {
+    day: 21,
+    title: "Day 21: Workloads & Scheduling - Configure Workload Autoscaling",
+    domain: "Workloads & Scheduling",
+    overview: "Configure workload autoscaling using Horizontal Pod Autoscaler (HPA) based on CPU metrics.",
+    hints: "Ensure metrics-server is installed for resource metrics: `kubectl get pods -n kube-system` (look for metrics-server).\nDefine HPA with `kubectl autoscale` or YAML, setting target CPU utilization and min/max replicas.\nSimulate load to test scaling with a stress tool or manual requests to trigger CPU usage.\nMonitor scaling with `kubectl get hpa` and `kubectl get pods` to observe replica changes.",
+    topics: "Horizontal Pod Autoscaler mechanics and metrics.\nCustom metrics for autoscaling (beyond CPU/memory).\nInteraction of HPA with resource limits and requests.",
+    grading: "HPA resource created for a Deployment (verify with `kubectl get hpa`).\nScaling triggered under load (confirm replica count changes with `kubectl get pods`).\nScaling behavior aligns with defined thresholds (check CPU usage with `kubectl top pod` if available, or pod count).",
+    solution: "Ensure metrics-server is running (install if needed as per Day 12 solution).\nDeploy a test app with resource limits: \n```yaml\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: autoscale-app\nspec:\n  replicas: 1\n  selector:\n    matchLabels:\n      app: autoscale-app\n  template:\n    metadata:\n      labels:\n        app: autoscale-app\n    spec:\n      containers:\n      - name: php-apache\n        image: hpa-example\n        resources:\n          limits:\n            cpu: \"500m\"\n          requests:\n            cpu: \"200m\"\n```\nApply and expose: `kubectl apply -f autoscale-app.yaml` and `kubectl expose deployment autoscale-app --port=80 --name=autoscale-svc`.\nCreate HPA: `kubectl autoscale deployment autoscale-app --cpu-percent=50 --min=1 --max=5`.\nSimulate load (if no load generator, use a loop in another pod): `kubectl run -it --rm load-generator --image=busybox -- /bin/sh -c \"while true; do wget -q -O- http://autoscale-svc:80; done\"`.\nMonitor: `kubectl get hpa autoscale-app -w` (watch replicas scale up on load).\nExpected output: HPA scales pods up to 5 under load (CPU > 50%), scales down when load decreases."
+  },
+  {
+    day: 22,
+    title: "Day 22: Troubleshooting - Simulate Networking Issue",
+    domain: "Troubleshooting",
+    overview: "Simulate a networking issue (e.g., pod unable to reach service) and resolve it using diagnostic tools.",
+    hints: "Simulate issues by misconfiguring a service, Network Policy, or stopping network components.\nCheck pod network status with `kubectl get pods -o wide` to see IPs and nodes.\nUse `kubectl exec <pod> -- ping <target-ip>` or `curl <service>` to test connectivity from within pods.\nInspect Network Policies with `kubectl get networkpolicy -n <namespace>` if traffic is unexpectedly blocked.",
+    topics: "Kubernetes networking model and troubleshooting flow.\nCommon networking issues (DNS, CNI failures, policy restrictions).\nDiagnostic commands within pod environments.",
+    grading: "Networking issue simulated and identified (e.g., pod can't reach service, verified with failed connectivity test).\nDiagnostic steps performed to isolate cause (document findings from `kubectl describe` or logs).\nIssue resolved (e.g., correct policy or service config, confirmed with successful connectivity).",
+    solution: "Deploy two pods and a service: `kubectl run app1 --image=nginx -l app=app1`, `kubectl expose pod app1 --port=80 --name=app1-svc`, and `kubectl run app2 --image=busybox -- /bin/sh -c \"sleep 3600\" -l app=app2`.\nSimulate issue - Apply a restrictive Network Policy in the namespace to block app2 from app1-svc:\n```yaml\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: block-app2\n  namespace: default\nspec:\n  podSelector:\n    matchLabels:\n      app: app1\n  policyTypes:\n  - Ingress\n  ingress:\n  - from:\n    - podSelector:\n        matchLabels:\n          app: app1\n```\nApply: `kubectl apply -f block-policy.yaml`.\nTest from app2: `kubectl exec app2 -- curl app1-svc:80` (should fail).\nDiagnose: Check policy with `kubectl get networkpolicy`, describe service `kubectl describe svc app1-svc` (endpoints ok?), check pod IPs `kubectl get pods -o wide`.\nExample scenario 1 - Policy issue: Realize policy blocks app2; edit policy to allow app2 or delete: `kubectl delete networkpolicy block-app2`.\nExample scenario 2 - DNS issue: If `curl` by IP works but service name fails, check DNS with `kubectl exec app2 -- nslookup app1-svc` (points to CoreDNS issue or service name mismatch).\nRetest: `kubectl exec app2 -- curl app1-svc:80` (should succeed post-fix).\nExpected output: Connectivity restored after identifying and resolving network restriction or configuration error."
+  },
+  {
+    day: 23,
+    title: "Day 23: Troubleshooting - Troubleshoot Failing Application Deployment",
+    domain: "Troubleshooting",
+    overview: "Troubleshoot a failing application deployment by analyzing events and pod status.",
+    hints: "Check deployment status with `kubectl get deployment` for replica mismatches or failures.\nUse `kubectl describe deployment <name>` to see events and conditions indicating failure reasons.\nInspect pod status with `kubectl get pods` and `kubectl describe pod <name>` for container-specific errors.\nLook at events with `kubectl get events --sort-by=.metadata.creationTimestamp` for chronological failure clues.",
+    topics: "Deployment failure modes (image pull errors, resource issues, config errors).\nEvent logging in Kubernetes for diagnostics.\nPod lifecycle and status conditions.",
+    grading: "Failing deployment identified (e.g., pods not ready, verified with `kubectl get deployment`).\nCause of failure determined (document findings from `kubectl describe` or events).\nIssue resolved and deployment successful (confirm with `kubectl get pods` showing Running state).",
+    solution: "Create a failing deployment (e.g., wrong image tag):\n```yaml\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: fail-app\nspec:\n  replicas: 2\n  selector:\n    matchLabels:\n      app: fail-app\n  template:\n    metadata:\n      labels:\n        app: fail-app\n    spec:\n      containers:\n      - name: nginx\n        image: nginx:nonexistent-tag\n```\nApply: `kubectl apply -f fail-app.yaml`.\nCheck status: `kubectl get deployment fail-app` (shows 0/2 ready).\nDiagnose: `kubectl describe deployment fail-app` (may show image pull error in events).\nCheck pods: `kubectl get pods -l app=fail-app` (pods in ImagePullBackOff or ErrImagePull).\nView events: `kubectl get events --sort-by=.metadata.creationTimestamp | grep fail-app` (confirms image pull failure).\nExample scenario 1 - Image issue: Fix by updating image to valid tag `kubectl set image deployment/fail-app nginx=nginx:1.14`.\nExample scenario 2 - Resource issue: If failure due to insufficient CPU/memory, check `kubectl describe pod` for OOMKilled or Pending status, then adjust resources in YAML.\nExample scenario 3 - ConfigMap/Secret missing: If app fails to start due to missing config, check logs `kubectl logs <pod>` and create missing resource.\nVerify fix: `kubectl get pods -l app=fail-app` (should be Running).\nExpected output: Deployment failure root cause identified (e.g., bad image), corrected, and pods reach Running state."
+  },
+  {
+    day: 24,
+    title: "Day 24: Troubleshooting - Optimize Cluster Performance Under Contention",
+    domain: "Troubleshooting",
+    overview: "Create a scenario with high resource contention and optimize cluster performance.",
+    hints: "Simulate contention by deploying workloads with high resource requests exceeding node capacity.\nCheck node resources with `kubectl describe nodes` to see CPU/memory allocation and pressure.\nIdentify throttled or evicted pods with `kubectl get pods` (look for Pending or Terminated states) and `kubectl describe pod` for reasons.\nOptimize by adjusting resource requests/limits, adding taints/tolerations, or scaling nodes if possible in homelab.",
+    topics: "Resource contention effects on pod scheduling and performance.\nPod Quality of Service (QoS) classes and eviction policies.\nNode pressure and kubelet behavior under stress.",
+    grading: "Resource contention scenario created (e.g., overcommitted CPU/memory, verified with `kubectl describe nodes`).\nPerformance issues identified (e.g., pods Pending or throttled, documented with status and events).\nOptimization applied and improvement observed (e.g., pods scheduled after adjustment, confirmed with `kubectl get pods`).",
+    solution: "Deploy multiple resource-heavy pods to create contention:\n```yaml\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: stress-contention\nspec:\n  replicas: 5\n  selector:\n    matchLabels:\n      app: stress-contention\n  template:\n    metadata:\n      labels:\n        app: stress-contention\n    spec:\n      containers:\n      - name: stress\n        image: polinux/stress\n        command: [\"stress\", \"--cpu\", \"2\", \"--vm\", \"1\"]\n        resources:\n          requests:\n            cpu: \"1000m\"\n            memory: \"1Gi\"\n          limits:\n            cpu: \"1500m\"\n            memory: \"1.5Gi\"\n```\nApply: `kubectl apply -f stress-contention.yaml`.\nCheck node status: `kubectl describe nodes` (look for high CPU/memory allocation, possible pressure).\nObserve pods: `kubectl get pods -l app=stress-contention` (some may be Pending if resources insufficient).\nDiagnose: `kubectl describe pod <pending-pod>` (may show \"Insufficient cpu\" or similar).\nExample scenario 1 - Overcommitment: Reduce requests/limits in Deployment YAML to fit node capacity: `kubectl edit deployment stress-contention` (e.g., lower CPU request to 500m).\nExample scenario 2 - Eviction: If pods are Terminated due to OOM, check events `kubectl get events`, increase memory limits or reduce replicas.\nExample scenario 3 - Node affinity: If contention on one node, spread pods with affinity rules or taints (e.g., `kubectl taint nodes <node> key=value:NoSchedule` and add toleration).\nVerify: `kubectl get pods` (more pods Running post-optimization).\nExpected output: Contention causes scheduling issues, resolved by adjusting resources or policies, leading to stable pod states."
+  },
+  {
+    day: 25,
+    title: "Day 25: Troubleshooting - Conduct Full Cluster Health Check",
+    domain: "Troubleshooting",
+    overview: "Conduct a full cluster health check, identifying and fixing multiple issues.",
+    hints: "Start with node status: `kubectl get nodes` (look for NotReady states).\nCheck control plane components in `kube-system` namespace with `kubectl get pods -n kube-system`.\nInspect workloads across namespaces for pod failures with `kubectl get pods --all-namespaces`.\nUse a systematic checklist: nodes, control plane, networking, workloads, storage, and events.",
+    topics: "Holistic cluster health monitoring.\nInterdependencies between cluster components.\nPrioritizing critical issues in troubleshooting.",
+    grading: "Multiple cluster issues simulated or identified (e.g., node down, pod failing, verified with status commands).\nSystematic diagnosis performed (document steps and findings from `kubectl get` and `describe`).\nIssues resolved or mitigated (confirm with health indicators like `kubectl get nodes` and pod status).",
+    solution: "Simulate issues for practice if cluster is healthy:\n  - Node issue: Stop kubelet on a node `systemctl stop kubelet` (on node, if accessible).\n  - Component issue: Delete a CoreDNS pod `kubectl delete pod -l k8s-app=coredns -n kube-system` (will restart with issue if misconfigured).\n  - Workload issue: Deploy a failing app as in Day 23.\nChecklist for health check:\n  1. Nodes: `kubectl get nodes` (NotReady node? Check kubelet status or network).\n  2. Control Plane: `kubectl get pods -n kube-system` (Crashing API server? Check logs `kubectl logs <apiserver-pod> -n kube-system`).\n  3. Networking: Test pod-to-pod `kubectl exec <pod> -- ping <other-pod-ip>` (fails? Check CNI pods or policies).\n  4. Workloads: `kubectl get pods --all-namespaces` (Pending/CrashLoop? Describe for reasons).\n  5. Storage: `kubectl get pvc --all-namespaces` (unbound claims? Check PVs or provisioner).\n  6. Events: `kubectl get events --sort-by=.metadata.creationTimestamp` (recent errors?).\nExample scenario 1 - Node NotReady: Restart kubelet `systemctl start kubelet` on node, check logs `journalctl -u kubelet`.\nExample scenario 2 - DNS failure: If CoreDNS down, check config `kubectl describe configmap coredns -n kube-system`, redeploy if needed.\nExample scenario 3 - Pod scheduling failure: If pods Pending, check taints `kubectl describe nodes` and remove unnecessary ones `kubectl taint nodes <node> key:NoSchedule-`.\nVerify fixes: Repeat checklist commands to ensure all components healthy.\nExpected output: Multiple issues identified (e.g., node, DNS, workload), resolved systematically, cluster returns to stable state."
+  },
+  {
+    day: 26,
+    title: "Day 26: Cluster Architecture, Installation & Configuration - Implement CRD and Operator",
+    domain: "Cluster Architecture, Installation & Configuration",
+    overview: "Implement a Custom Resource Definition (CRD) and deploy an operator to manage custom resources.",
+    hints: "Use a simple operator example like `kubebuilder` or an existing one (e.g., Prometheus Operator) for homelab.\nDefine a CRD YAML with schema for custom resource properties.\nInstall operator via Helm or manifests to handle CRD instances.\nCreate a custom resource instance and verify operator action with `kubectl get <custom-resource>`.",
+    topics: "Custom Resource Definitions and their role in extending Kubernetes.\nOperator pattern for automating resource management.\nCRD versioning and validation.",
+    grading: "CRD defined and applied (verify with `kubectl get crd`).\nOperator installed to manage CRD (check operator pods with `kubectl get pods`).\nCustom resource created and managed by operator (confirm with resource status or operator logs).",
+    solution: "Use Prometheus Operator as an example (simplified for homelab).\nInstall via Helm: `helm repo add prometheus-community https://prometheus-community.github.io/helm-charts` and `helm install prometheus prometheus-community/kube-prometheus-stack -n monitoring --create-namespace --set prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.storageClassName=local-path --set prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.resources.requests.storage=1Gi`.\nCheck CRDs: `kubectl get crd | grep monitoring` (shows Prometheus, ServiceMonitor, etc.).\nVerify operator: `kubectl get pods -n monitoring` (operator and Prometheus pods Running).\nCreate a custom resource (ServiceMonitor to monitor a service):\n```yaml\napiVersion: monitoring.coreos.com/v1\nkind: ServiceMonitor\nmetadata:\n  name: example-app\n  namespace: monitoring\n  labels:\n    team: frontend\nspec:\n  selector:\n    matchLabels:\n      app: example-app\n  endpoints:\n  - port: web\n```\nApply (adjust selector to match an existing service): `kubectl apply -f servicemonitor.yaml`.\nCheck operator action: `kubectl logs -l app.kubernetes.io/name=prometheus-operator -n monitoring` (should show reconciliation of ServiceMonitor).\nExpected output: CRD and operator installed, custom resource (ServiceMonitor) created, and operator manages it (visible in logs or Prometheus UI if accessible)."
+  },
+  {
+    day: 27,
+    title: "Day 27: Cluster Architecture, Installation & Configuration - Simulate Cluster Upgrade",
+    domain: "Cluster Architecture, Installation & Configuration",
+    overview: "Simulate a cluster upgrade using kubeadm and document the process for rollback if needed.",
+    hints: "Check current cluster version with `kubectl version` or `kubeadm version`.\nPlan upgrade path following Kubernetes version skew policy (e.g., minor version increments).\nUse `kubeadm upgrade plan` to see available versions and prerequisites.\nBackup etcd data and kubeconfig before upgrade (`cp -r /etc/kubernetes /etc/kubernetes.bak` on control plane).",
+    topics: "Kubernetes version compatibility and skew policies.\nUpgrade sequence for control plane and worker nodes.\nRollback strategies post-upgrade failure.",
+    grading: "Upgrade plan reviewed (output of `kubeadm upgrade plan` documented).\nControl plane upgraded (verify with `kubectl version` showing new version on master).\nWorker nodes upgraded and cluster functional (confirm with `kubectl get nodes` showing consistent versions).",
+    solution: "Start by checking current version: `kubectl version` or `kubeadm version`.\nBackup critical data on control plane node: `sudo cp -r /etc/kubernetes /etc/kubernetes.bak` and save `/root/.kube/config` if customized.\nCheck upgrade options: `kubeadm upgrade plan` (lists target versions and prerequisites like package updates).\nUpgrade control plane (example from v1.22 to v1.23, adjust based on your version):\n  - Update packages: `sudo apt update && sudo apt install -y kubeadm=1.23.0-00`.\n  - Upgrade: `sudo kubeadm upgrade apply v1.23.0`.\nUpgrade kubelet and kubectl on control plane: `sudo apt install -y kubelet=1.23.0-00 kubectl=1.23.0-00`.\nRepeat for worker nodes: Drain node `kubectl drain <node> --ignore-daemonsets`, update packages, `sudo kubeadm upgrade node`, update kubelet, uncordon `kubectl uncordon <node>`.\nVerify: `kubectl get nodes` (all nodes show new version in status).\nRollback plan (if issues): Downgrade packages to previous version, restore `/etc/kubernetes` backup, and reinitialize if needed (note: rollback may require cluster reset in homelab).\nExpected output: Cluster upgraded to target version, all nodes consistent and Ready, workloads operational post-upgrade."
+  },
+  {
+    day: 28,
+    title: "Day 28: Storage - Manage Persistent Volumes Manually",
+    domain: "Storage",
+    overview: "Manage Persistent Volumes manually, binding them to PVCs, and test data persistence across pod restarts.",
+    hints: "Create a Persistent Volume (PV) manually with specific storage details (e.g., `hostPath` for homelab) using YAML.\\nDefine a Persistent Volume Claim (PVC) to request storage matching PV specs.\\nBind PV to PVC manually if not automatic by ensuring specs align (e.g., storage size, access mode).\\nTest persistence by writing data to a pod's mounted volume, deleting the pod, and verifying data in a new pod.",
+    topics: "Manual vs. dynamic provisioning of storage.\\nPV and PVC lifecycle and binding states.\\nData persistence strategies in Kubernetes.",
+    grading: "PV created manually (verify with `kubectl get pv` showing Available status initially).\\nPVC created and bound to PV (check with `kubectl get pvc` showing Bound status).\\nData persistence confirmed (e.g., file survives pod restart, tested with read/write operations).",
+    solution: "Create a manual PV with `hostPath` (for homelab):\\n```yaml\\napiVersion: v1\\nkind: PersistentVolume\\nmetadata:\\n  name: manual-pv\\nspec:\\n  capacity:\\n    storage: 1Gi\\n  accessModes:\\n    - ReadWriteOnce\\n  persistentVolumeReclaimPolicy: Retain\\n  hostPath:\\n    path: /mnt/data\\n    type: DirectoryOrCreate\\n```\\nApply: `kubectl apply -f manual-pv.yaml`.\\nCreate a PVC to claim it:\\n```yaml\\napiVersion: v1\\nkind: PersistentVolumeClaim\\nmetadata:\\n  name: manual-pvc\\nspec:\\n  accessModes:\\n    - ReadWriteOnce\\n  resources:\\n    requests:\\n      storage: 1Gi\\n```\\nApply: `kubectl apply -f manual-pvc.yaml`.\\nCheck binding: `kubectl get pvc manual-pvc` (should show Bound to `manual-pv`).\\nDeploy a pod to use PVC:\\n```yaml\\napiVersion: v1\\nkind: Pod\\nmetadata:\\n  name: test-persistence\\nspec:\\n  containers:\\n  - name: busybox\\n    image: busybox\\n    command: [\\\"/bin/sh\\\", \\\"-c\\\", \\\"echo 'test data' > /data/test.txt && sleep 3600\\\"]\\n    volumeMounts:\\n    - name: data\\n      mountPath: /data\\n  volumes:\\n  - name: data\\n    persistentVolumeClaim:\\n      claimName: manual-pvc\\n```\\nApply: `kubectl apply -f test-pod.yaml`.\\nVerify data: `kubectl exec test-persistence -- cat /data/test.txt` (shows 'test data').\\nDelete pod: `kubectl delete pod test-persistence`.\\nRedeploy same pod spec, recheck data: `kubectl apply -f test-pod.yaml` and `kubectl exec test-persistence -- cat /data/test.txt` (data persists).\\nExpected output: PV and PVC bound, data written to volume persists across pod restarts."
+  },
+  {
+    day: 29,
+    title: "Day 29: Review and Mock Exam - Review Key Concepts",
+    domain: "Review and Mock Exam",
+    overview: "Review key concepts from all domains and revisit challenging tasks from previous days.",
+    hints: "Revisit your progress log or notes from each day to identify areas of weakness (e.g., frequent issues in Troubleshooting or Storage).\\nFocus on high-weight domains like Troubleshooting (30%) and Cluster Architecture (25%) for deeper review.\\nUse official Kubernetes documentation to clarify concepts (e.g., RBAC, Network Policies).\\nRepeat tasks from earlier days if needed (e.g., Day 1 cluster setup, Day 10 node failure) to reinforce skills.",
+    topics: "Recap of all CKA domains: Storage, Troubleshooting, Workloads & Scheduling, Cluster Architecture, Services & Networking.\\nCross-domain interactions (e.g., how networking impacts workloads).\\nExam format and time management strategies.",
+    grading: "Key concepts from each domain reviewed (document a summary or checklist of revisited topics).\\nWeak areas identified and revisited (note specific days or tasks repeated).\\nConfidence level assessed for each domain (self-evaluate readiness per competency).",
+    solution: "Create a review checklist based on CKA competencies:\\n  - **Storage (10%)**: Dynamic provisioning (Day 8), volume types (Day 9), manual PV management (Day 28).\\n  - **Troubleshooting (30%)**: Node failure (Day 10), component issues (Day 11), service/networking (Day 13, 22), deployment failures (Day 23), performance (Day 24), full health check (Day 25).\\n  - **Workloads & Scheduling (15%)**: Affinity (Day 4), resources (Day 5), updates/rollbacks (Day 20), autoscaling (Day 21).\\n  - **Cluster Architecture (25%)**: Cluster setup/HA (Days 1-2), RBAC (Day 3), Helm/Kustomize (Days 14-15), CNI/CRD/operators (Days 16, 26), upgrades (Day 27).\\n  - **Services & Networking (20%)**: Service types (Day 6), Network Policies (Day 7), Ingress/Gateway (Days 17-18), CoreDNS (Day 19).\\nRevisit notes or logs from each day, focusing on errors encountered (e.g., if Day 11 component troubleshooting was challenging, redo log analysis steps).\\nAccess Kubernetes docs (kubernetes.io) for unclear topics like CRDs or Gateway API.\\nRepeat a complex task if needed: e.g., reset a node (Day 10) or reapply a Network Policy (Day 7) to test restrictions.\\nSelf-assess: Rate understanding 1-5 per domain, plan extra time for scores below 3.\\nExpected output: Comprehensive review completed, weak areas strengthened through repetition, readiness assessed for mock exam."
+  },
+  {
+    day: 30,
+    title: "Day 30: Review and Mock Exam - Perform Mock Exam Scenario",
+    domain: "Review and Mock Exam",
+    overview: "Perform a mock exam scenario by combining tasks from multiple domains under a time limit.",
+    hints: "Set a time limit (e.g., 2 hours) to simulate CKA exam pressure (actual exam is ~2 hours for multiple tasks).\\nCombine tasks across domains: deploy an app (Workloads), configure networking (Services), add storage (Storage), secure with RBAC (Architecture), and troubleshoot an issue (Troubleshooting).\\nUse only built-in tools (`kubectl`, basic shell commands) as per exam constraints, no external aids.\\nDocument steps and issues during the mock to review post-exam for improvement.",
+    topics: "Time management under exam conditions.\\nPrioritizing tasks based on dependencies (e.g., networking before app deployment).\\nHandling multi-domain problems efficiently.",
+    grading: "Mock exam completed within time limit (e.g., 2 hours, self-timed).\\nTasks from multiple domains attempted (verify completion of deployment, networking, storage, RBAC, troubleshooting components).\\nSuccess rate assessed (e.g., 80% tasks working as intended, self-evaluated against expected outputs).",
+    solution: "Set timer for 2 hours. Scenario: Deploy a multi-tier app with constraints.\\n**Task 1 - Cluster Architecture (RBAC)** (10 min):\\n  - Create a Role for namespace `exam-ns` allowing only pod read access: `kubectl create role pod-reader --verb=get,list --resource=pods -n exam-ns`.\\n  - Bind to a user: `kubectl create rolebinding pod-reader-user --role=pod-reader --user=exam-user -n exam-ns`.\\n  - Test (if possible): `kubectl auth can-i get pods -n exam-ns --as=exam-user` (should be yes).\\n**Task 2 - Workloads & Scheduling** (20 min):\\n  - Deploy a frontend app in `exam-ns`: `kubectl create deployment frontend --image=nginx --replicas=2 -n exam-ns`.\\n  - Set resource limits: `kubectl edit deployment frontend -n exam-ns` (add CPU request 200m, limit 500m).\\n  - Verify: `kubectl get pods -n exam-ns` (Running with resources).\\n**Task 3 - Services & Networking** (20 min):\\n  - Expose frontend as ClusterIP: `kubectl expose deployment frontend --port=80 --name=frontend-svc -n exam-ns`.\\n  - Add Ingress: Create YAML for Ingress routing `/frontend` to `frontend-svc` (as in Day 17, adjust namespace).\\n  - Test internally: `kubectl run test-pod -n exam-ns --image=busybox -- /bin/sh -c \\\"wget -qO- frontend-svc:80\\\"` (should respond).\\n**Task 4 - Storage** (15 min):\\n  - Create PVC for backend data: Use `local-path` StorageClass (Day 8), request 500Mi in `exam-ns`.\\n  - Deploy backend pod using PVC (e.g., busybox writing data as in Day 28).\\n  - Verify persistence: Delete and recreate pod, check data.\\n**Task 5 - Troubleshooting** (25 min):\\n  - Simulate issue: Edit `frontend-svc` to wrong selector `app=wrong` with `kubectl edit svc frontend-svc -n exam-ns`.\\n  - Diagnose: Access fails from test-pod, check `kubectl describe svc frontend-svc -n exam-ns` (no endpoints), check selectors `kubectl get pods --show-labels -n exam-ns`.\\n  - Fix: Correct selector to `app=frontend` in service.\\n  - Retest: Access succeeds.\\nPost-exam (10 min): Review errors, missed steps, time overruns.\\nExpected output: Most tasks completed (e.g., app deployed, networking configured, issue fixed) within 2 hours, gaps identified for final prep."
+  }
+];
+// --- DOM Elements ---
+const progressDashboard = document.getElementById('progressDashboard');
+// const selectDay = document.getElementById('selectDay'); // Removed
+const dailyContent = document.getElementById('dailyContent');
+const notesDayNumber = document.getElementById('notesDayNumber');
+        const noteInput = document.getElementById('noteInput');
+        const notePreview = document.getElementById('notePreview');
+        const chatMessages = document.getElementById('chatMessages');
+        const chatInput = document.getElementById('chatInput');
+        const totalPointsDisplay = document.getElementById('totalPoints');
+
+        // --- State ---
+        let currentDay = null;
+        let notes = {}; // Store notes by day number { 1: "note content", 2: "..." }
+        let progress = {}; // Store progress by day number { 1: "completed", 2: "in-progress" }
+        let points = 0;
+        let chatHistory = []; // Store chat history { sender: 'user'/'assistant', message: '...' }
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', initializeApp);
+
+        function initializeApp() {
+            loadState(); // Load saved state first
+            populateDashboard();
+            // populateDaySelector(); // Removed
+            setupEventListeners();
+            updatePointsDisplay();
+            // Optionally load the first day or last viewed day
+            // if (currentDay) {
+            //     handleDaySelection(currentDay);
+            // }
+            hljs.highlightAll(); // Initialize highlight.js
+            console.log("CKA Study Companion Initialized");
+        }
+
+        // --- State Management ---
+        function saveState() {
+            localStorage.setItem('ckaCompanionState', JSON.stringify({
+                currentDay,
+                notes,
+                progress,
+                points,
+                chatHistory
+            }));
+            console.log("State saved.");
+        }
+
+        function loadState() {
+            const savedState = localStorage.getItem('ckaCompanionState');
+            if (savedState) {
+                const state = JSON.parse(savedState);
+                currentDay = state.currentDay || null;
+                notes = state.notes || {};
+                progress = state.progress || {};
+                points = state.points || 0;
+                chatHistory = state.chatHistory || [];
+                // Restore chat history UI
+                chatMessages.innerHTML = ''; // Clear placeholder
+                chatHistory.forEach(msg => displayMessage(msg.sender, msg.message));
+                console.log("State loaded.");
+            } else {
+                console.log("No saved state found.");
+            }
+        }
+
+        // --- Dashboard ---
+        function populateDashboard() {
+            progressDashboard.innerHTML = ''; // Clear existing
+            // Add placeholders for empty days if needed for calendar layout (optional)
+            // const totalDays = 30; // Or determine dynamically
+            // const placeholdersNeeded = (7 - (totalDays % 7)) % 7;
+
+            daysData.forEach(day => {
+                const card = document.createElement('div');
+                // Reverted to original padding, removed fixed height/width and centering
+                card.classList.add(
+                    'day-card', 'p-3', // Adjusted padding
+                    'rounded-lg', 'shadow', 'border', 'border-gray-200', 'bg-white'
+                );
+                // Add status class based on progress
+                const status = progress[day.day] || 'not-started';
+                card.classList.add(status);
+                card.dataset.day = day.day;
+                // card.title = day.overview; // Removed title attribute
+
+                const dayNumber = document.createElement('h3');
+                // Smaller text for day number
+                dayNumber.classList.add('font-semibold', 'text-base', 'mb-1'); // Changed text-lg to text-base
+                dayNumber.textContent = `Day ${day.day}`;
+
+                // Add back the overview paragraph with smaller text
+                const dayOverview = document.createElement('p');
+                dayOverview.classList.add('text-xs', 'text-gray-600', 'line-clamp-3'); // Changed text-sm to text-xs
+                dayOverview.textContent = day.overview;
+
+                card.appendChild(dayNumber);
+                card.appendChild(dayOverview); // Append overview paragraph
+
+                card.addEventListener('click', () => handleDaySelection(day.day));
+                progressDashboard.appendChild(card);
+            });
+        }
+
+        // --- Day Selector Dropdown ---
+        // function populateDaySelector() { ... } // Removed
+
+        // --- Daily Content Display ---
+        function displayDayContent(dayNumber) {
+            const dayData = daysData.find(d => d.day === dayNumber);
+            if (!dayData) {
+                dailyContent.innerHTML = '<p class="text-red-500">Error: Could not find data for the selected day.</p>';
+                return;
+            }
+
+            // Basic structure
+            let contentHtml = `
+                <h3 class="text-xl font-bold mb-3">${dayData.title}</h3>
+                <p class="text-sm text-gray-500 mb-4">Domain: ${dayData.domain}</p>
+
+                <div class="mb-4 p-4 border rounded bg-gray-50">
+                    <h4 class="font-semibold text-lg mb-2">Challenge Overview</h4>
+                    <p>${formatText(dayData.overview)}</p>
+                </div>
+            `;
+
+            // Collapsible sections
+            contentHtml += createCollapsibleSection('Hints & Tips', formatText(dayData.hints));
+            contentHtml += createCollapsibleSection('Topics to Explore', formatText(dayData.topics));
+            contentHtml += createCollapsibleSection('Grading Criteria', formatText(dayData.grading));
+
+            // Solution section with reveal
+            contentHtml += `
+                <div class="mt-4">
+                    <h4 class="font-semibold text-lg mb-2">Solution</h4>
+                    <div id="solutionContent" class="solution-hidden border border-dashed border-gray-300 p-4 rounded bg-gray-50 min-h-[50px]">
+                        ${formatText(dayData.solution)}
+                    </div>
+                    <button onclick="revealSolution(this)" class="mt-2 bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 text-sm">Reveal Solution</button>
+                </div>
+            `;
+
+            // Progress tracking controls
+             contentHtml += `
+                <div class="mt-6 border-t pt-4">
+                    <h4 class="font-semibold text-lg mb-2">Track Progress</h4>
+                    <div class="flex space-x-2">
+                        <button onclick="updateProgress(${dayNumber}, 'completed')" class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 text-sm ${progress[dayNumber] === 'completed' ? 'ring-2 ring-offset-1 ring-green-700' : ''}">Mark as Completed</button>
+                        <button onclick="updateProgress(${dayNumber}, 'in-progress')" class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 text-sm ${progress[dayNumber] === 'in-progress' ? 'ring-2 ring-offset-1 ring-blue-700' : ''}">Mark as In Progress</button>
+                        <button onclick="updateProgress(${dayNumber}, 'not-started')" class="bg-gray-500 text-white px-3 py-1 rounded hover:bg-gray-600 text-sm ${(!progress[dayNumber] || progress[dayNumber] === 'not-started') ? 'ring-2 ring-offset-1 ring-gray-700' : ''}">Mark as Not Started</button>
+                    </div>
+                </div>
+            `;
+
+
+            dailyContent.innerHTML = contentHtml;
+            setupCollapsibles(); // Re-attach listeners for new content
+            hljs.highlightAll(); // Apply highlighting to new code blocks
+        }
+
+        function formatText(text) {
+            // Basic formatting: replace newlines with <br> and render markdown for code blocks
+            if (!text) return '';
+            // Use marked.js for full markdown rendering if needed, or simple replace for now
+             // Escape HTML potentially present in the source markdown to prevent injection
+            const escapedText = text.replace(/</g, "<").replace(/>/g, ">");
+            // Then replace newlines with <br> for display
+            return escapedText.replace(/\n/g, '<br>');
+            // For full markdown including code blocks:
+            // return marked.parse(text); // Ensure marked.js is loaded
+        }
+
+
+        function createCollapsibleSection(title, content) {
+            // Unique ID for content area to toggle
+            const contentId = `collapse-${title.replace(/\s+/g, '-')}`;
+            return `
+                <div class="mb-3 border rounded">
+                    <div class="collapsible-trigger bg-gray-100 p-3 font-medium flex justify-between items-center" onclick="toggleCollapsible('${contentId}', this)">
+                        <span>${title}</span>
+                        <span class="arrow transform transition-transform duration-300">&#9660;</span> <!-- Down arrow -->
+                    </div>
+                    <div id="${contentId}" class="collapsible-content p-3 border-t">
+                        ${content}
+                    </div>
+                </div>
+            `;
+        }
+
+        function toggleCollapsible(contentId, triggerElement) {
+            const content = document.getElementById(contentId);
+            const arrow = triggerElement.querySelector('.arrow');
+            if (content.classList.contains('active')) {
+                content.classList.remove('active');
+                content.style.maxHeight = '0';
+                arrow.style.transform = 'rotate(0deg)';
+            } else {
+                content.classList.add('active');
+                content.style.maxHeight = content.scrollHeight + "px"; // Set max-height for animation
+                 arrow.style.transform = 'rotate(180deg)';
+            }
+        }
+
+         function setupCollapsibles() {
+            // This function might not be strictly needed if using inline onclick,
+            // but could be used for more complex event handling if required later.
+            // Example: document.querySelectorAll('.collapsible-trigger').forEach(el => el.addEventListener('click', ...));
+        }
+
+        function revealSolution(buttonElement) {
+            const solutionContent = document.getElementById('solutionContent');
+            if (confirm("Have you attempted this challenge yourself first?")) {
+                solutionContent.classList.remove('solution-hidden');
+                solutionContent.style.filter = 'none'; // Remove blur
+                buttonElement.textContent = 'Solution Revealed';
+                buttonElement.disabled = true;
+                buttonElement.classList.add('bg-gray-400', 'cursor-not-allowed');
+                buttonElement.classList.remove('bg-yellow-500', 'hover:bg-yellow-600');
+                 // Re-apply highlighting after reveal if content was complex
+                hljs.highlightElement(solutionContent.querySelector('pre code') || solutionContent);
+            }
+        }
+
+
+        // --- Event Listeners Setup ---
+        function setupEventListeners() {
+            // selectDay.addEventListener('change', ...); // Removed dropdown listener
+
+            noteInput.addEventListener('input', updateNotePreview);
+            noteInput.addEventListener('blur', saveNote); // Auto-save on blur
+
+             // Chat input listener
+            chatInput.addEventListener('keypress', function(event) {
+                if (event.key === 'Enter' && !event.shiftKey) { // Send on Enter, allow Shift+Enter for newline
+                    event.preventDefault(); // Prevent default Enter behavior (newline)
+                    sendMessage();
+                }
+            });
+        }
+
+        // --- Day Selection Logic ---
+        function handleDaySelection(dayNumber) {
+             if (currentDay !== null && noteInput.value !== (notes[currentDay] || '')) {
+                saveNote(); // Save previous day's note if changed
+            }
+            currentDay = dayNumber;
+            // selectDay.value = dayNumber; // Removed dropdown sync
+            notesDayNumber.textContent = dayNumber;
+            displayDayContent(dayNumber);
+            loadNote(dayNumber); // Load notes for the new day
+            updateNotePreview(); // Update preview for the loaded note
+            // Highlight selected card in dashboard
+            document.querySelectorAll('.day-card').forEach(card => {
+                card.classList.remove('ring-2', 'ring-blue-500', 'ring-offset-2');
+                if (parseInt(card.dataset.day) === dayNumber) {
+                    card.classList.add('ring-2', 'ring-blue-500', 'ring-offset-2');
+                }
+            });
+             saveState(); // Save the new currentDay
+        }
+
+         // --- Progress Tracking ---
+        function updateProgress(dayNumber, status) {
+            const oldStatus = progress[dayNumber];
+            progress[dayNumber] = status;
+
+            // Update points (simple example: 10 points for completion)
+            if (status === 'completed' && oldStatus !== 'completed') {
+                points += 10;
+            } else if (oldStatus === 'completed' && status !== 'completed') {
+                 points = Math.max(0, points - 10); // Deduct if unmarked
+            }
+
+            updatePointsDisplay();
+            populateDashboard(); // Re-render dashboard to show new status colors
+            // Re-highlight the current day card if it was the one updated
+             if (currentDay === dayNumber) {
+                 const currentCard = document.querySelector(`.day-card[data-day="${dayNumber}"]`);
+                 if (currentCard) {
+                    currentCard.classList.add('ring-2', 'ring-blue-500', 'ring-offset-2');
+                 }
+            }
+            saveState(); // Save progress and points
+        }
+
+        function updatePointsDisplay() {
+            totalPointsDisplay.textContent = points;
+            document.querySelector('#pointsDisplay span.text-sm').textContent = ''; // Remove loading text
+        }
+
+
+        // --- Notes ---
+        function updateNotePreview() {
+            const markdownText = noteInput.value;
+            if (markdownText) {
+                notePreview.innerHTML = marked.parse(markdownText);
+                // Apply highlighting to code blocks within the preview
+                notePreview.querySelectorAll('pre code').forEach((block) => {
+                    hljs.highlightElement(block);
+                });
+            } else {
+                notePreview.innerHTML = '<p class="text-gray-400">Markdown preview will appear here...</p>';
+            }
+        }
+
+        function saveNote() {
+            if (currentDay !== null) {
+                notes[currentDay] = noteInput.value;
+                console.log(`Note saved for Day ${currentDay}`);
+                saveState(); // Persist notes
+            } else {
+                 console.warn("Cannot save note, no day selected.");
+            }
+        }
+
+        function loadNote(dayNumber) {
+            noteInput.value = notes[dayNumber] || '';
+            updateNotePreview();
+        }
+
+        function exportNote() {
+            if (currentDay === null) {
+                alert("Please select a day first.");
+                return;
+            }
+            const noteContent = notes[currentDay] || '';
+            const blob = new Blob([noteContent], { type: 'text/markdown;charset=utf-8' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `cka-day-${currentDay}-notes.md`;
+            link.click();
+            URL.revokeObjectURL(link.href);
+        }
+
+        function exportAllNotes() {
+            let allNotesContent = `# CKA Study Companion - All Notes\n\n`;
+            daysData.forEach(day => {
+                if (notes[day.day]) {
+                    allNotesContent += `## Day ${day.day}: ${day.title}\n\n`;
+                    allNotesContent += `${notes[day.day]}\n\n---\n\n`;
+                }
+            });
+
+            if (allNotesContent.length === `# CKA Study Companion - All Notes\n\n`.length) {
+                 alert("No notes found to export.");
+                 return;
+            }
+
+            const blob = new Blob([allNotesContent], { type: 'text/markdown;charset=utf-8' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'cka-all-notes.md';
+            link.click();
+            URL.revokeObjectURL(link.href);
+        }
+
+        // --- Chat ---
+        function sendMessage() {
+            const message = chatInput.value.trim();
+            if (!message) return;
+
+            displayMessage('user', message);
+            chatHistory.push({ sender: 'user', message: message });
+            chatInput.value = '';
+
+            // Keep only the last few messages for context (e.g., last 5 exchanges = 10 messages)
+            const contextLimit = 10;
+             const recentHistory = chatHistory.slice(-contextLimit);
+
+
+            // Placeholder for AI response - Replace with actual API call
+            // fetch('/api/chatbot', { // Example API endpoint
+            //     method: 'POST',
+            //     headers: { 'Content-Type': 'application/json' },
+            //     body: JSON.stringify({ message: message, history: recentHistory }) // Send message and recent history
+            // })
+            // .then(response => response.json())
+            // .then(data => {
+            //     displayMessage('assistant', data.reply);
+            //     chatHistory.push({ sender: 'assistant', message: data.reply });
+            //     saveState(); // Save updated chat history
+            // })
+            // .catch(error => {
+            //     console.error('Chatbot API error:', error);
+            //     displayMessage('assistant', 'Sorry, I encountered an error.');
+            //      saveState(); // Save even if error occurs
+            // });
+
+             // --- Mock AI Response (REMOVE THIS IN PRODUCTION) ---
+            setTimeout(() => {
+                const reply = `This is a simulated response to: "${message}". Backend integration needed.`;
+                displayMessage('assistant', reply);
+                chatHistory.push({ sender: 'assistant', message: reply });
+                saveState(); // Save updated chat history
+            }, 500);
+             // --- End Mock AI Response ---
+        }
+
+        function displayMessage(sender, message) {
+             if (chatMessages.querySelector('p.text-gray-400')) {
+                chatMessages.innerHTML = ''; // Clear placeholder on first message
+            }
+            const messageElement = document.createElement('div');
+            messageElement.classList.add(sender === 'user' ? 'user-message' : 'assistant-message');
+            // Basic text display, consider using marked.parse for markdown in assistant messages
+            messageElement.textContent = message;
+            chatMessages.appendChild(messageElement);
+            chatMessages.scrollTop = chatMessages.scrollHeight; // Scroll to bottom
+        }
+
+        function resetChat() {
+            if (confirm("Are you sure you want to reset the chat history?")) {
+                chatHistory = [];
+                chatMessages.innerHTML = '<p class="text-gray-400 text-center mt-4">Chat history will appear here...</p>';
+                saveState(); // Save cleared history
+            }
+        }
+
+    </script>
+</body>
+</html>

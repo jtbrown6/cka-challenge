@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  cka-study-companion:
+    build: .
+    image: cka-study-companion:latest
+    container_name: cka-study-companion
+    ports:
+      - "3010:3010"
+    volumes:
+      - cka-data:/data/cka-app
+    environment:
+      - DATA_DIR=/data/cka-app
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-placeholder-key}
+    restart: unless-stopped
+
+volumes:
+  cka-data:
+    driver: local
